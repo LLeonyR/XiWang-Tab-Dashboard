@@ -25,6 +25,10 @@ const SubgroupComponent = (() => {
                     data-subgroup-id="${subgroup.id}"
                     title="添加卡片">＋</button>
             <button class="subgroup-action-btn"
+                    data-action="move-subgroup"
+                    data-subgroup-id="${subgroup.id}"
+                    title="移动到其他分组">↗</button>
+            <button class="subgroup-action-btn"
                     data-action="edit-subgroup"
                     data-subgroup-id="${subgroup.id}"
                     title="编辑">✎</button>

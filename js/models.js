@@ -35,13 +35,13 @@ function createCard(data = {}) {
 }
 
 /**
- * 创建小分组
+ * 创建分组
  */
 function createSubgroup(data = {}) {
   return {
     id: data.id || generateId('sg'),
     type: 'subgroup',
-    name: data.name || '新文件夹',
+    name: data.name || '新分组',
     icon: data.icon || '📁',
     order: data.order !== undefined ? data.order : 0,
     displayMode: data.displayMode || 'comfortable', // 'compact' | 'comfortable'

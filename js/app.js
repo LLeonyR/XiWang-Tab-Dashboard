@@ -49,11 +49,11 @@
   // ========== 全局事件绑定 ==========
 
   function bindGlobalEvents() {
-    // 添加分组
+    // 添加类别
     document.getElementById('addGroupBtn').addEventListener('click', async () => {
       const group = await Editor.addGroup();
       if (group) {
-        // 自动切换到新分组
+        // 自动切换到新类别
         config.settings.activeGroupId = group.id;
         Renderer.renderAll(config);
         Storage.saveConfig(config);
@@ -63,7 +63,7 @@
     // 配置
     document.getElementById('settingsBtn').addEventListener('click', openSettingsModal);
 
-    // 添加小分组
+    // 添加分组
     document.getElementById('addSubgroupBtn').addEventListener('click', async () => {
       const curGroup = Renderer.getCurrentGroup();
       if (!curGroup) {
@@ -153,9 +153,9 @@
       const subgroup = findSubgroupById(config, subgroupId);
       if (subgroup) {
         menuItems = [
-          { label: '✎ 编辑小分组', action: () => editSubgroupMenu(subgroup) },
+          { label: '✎ 编辑分组', action: () => editSubgroupMenu(subgroup) },
           { label: `⊞ 切换为${subgroup.displayMode === 'compact' ? '宽松' : '紧凑'}模式`, action: () => toggleSubgroupMode(subgroup) },
-          { label: '🗑 删除小分组', danger: true, action: () => deleteSubgroupMenu(subgroup) }
+          { label: '🗑 删除分组', danger: true, action: () => deleteSubgroupMenu(subgroup) }
         ];
       }
     } else if (groupItemEl) {
@@ -163,8 +163,8 @@
       const group = findGroup(config, groupId);
       if (group) {
         menuItems = [
-          { label: '✎ 编辑分组', action: () => editGroupMenu(group) },
-          { label: '🗑 删除分组', danger: true, action: () => deleteGroupMenu(group) }
+          { label: '✎ 编辑类别', action: () => editGroupMenu(group) },
+          { label: '🗑 删除类别', danger: true, action: () => deleteGroupMenu(group) }
         ];
       }
     }
@@ -240,7 +240,7 @@
     if (deleted) {
       Renderer.refreshContent();
       Storage.saveConfig(config);
-      showUndoToast('小分组', () => {
+      showUndoToast('分组', () => {
         Editor.restoreDelete(config, 'subgroup', config.settings.activeGroupId, null, deleted);
         Renderer.refreshContent();
         Storage.saveConfig(config);
@@ -265,18 +265,18 @@
 
   async function deleteGroupMenu(group) {
     if (config.groups.length <= 1) {
-      showToast('至少需要保留一个分组');
+      showToast('至少需要保留一个类别');
       return;
     }
     const deleted = Editor.deleteItem(config, 'group', null, null, group.id);
     if (deleted) {
-      // 如果删除的是当前激活分组，切换到第一个
+      // 如果删除的是当前激活类别，切换到第一个
       if (config.settings.activeGroupId === group.id) {
         config.settings.activeGroupId = config.groups[0]?.id || null;
       }
       Renderer.renderAll(config);
       Storage.saveConfig(config);
-      showUndoToast('分组', () => {
+      showUndoToast('类别', () => {
         Editor.restoreDelete(config, 'group', null, null, deleted);
         Renderer.renderAll(config);
         Storage.saveConfig(config);

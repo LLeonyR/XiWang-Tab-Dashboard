@@ -5,6 +5,7 @@ const Editor = (() => {
   let modalResolve = null;
   let currentConfig = null;
   let _capturedFormData = null; // 在关闭弹窗前同步捕获的表单数据
+  let _fetchedFaviconBase64 = null; // 弹窗中实时获取的 favicon base64
 
   const emojiList = Icons.getEmojiList();
 
@@ -99,16 +100,16 @@ const Editor = (() => {
       </div>`;
   }
 
-  // ========== 分组编辑 ==========
+  // ========== 类别编辑 ==========
 
   /**
-   * 添加分组
+   * 添加类别
    */
   async function addGroup() {
-    const result = await showModal('添加分组', `
+    const result = await showModal('添加类别', `
       <div class="form-group">
-        <label class="form-label">分组名称</label>
-        <input class="form-input" name="name" placeholder="输入分组名称" value="新分组">
+        <label class="form-label">类别名称</label>
+        <input class="form-input" name="name" placeholder="输入类别名称" value="">
       </div>
       <div class="form-group">
         <label class="form-label">选择图标</label>
@@ -120,7 +121,7 @@ const Editor = (() => {
     if (result) {
       const data = getCapturedFormData();
       const group = createGroup({
-        name: data.name || '新分组',
+        name: data.name || '新类别',
         icon: data._selectedEmoji || '📂',
         order: currentConfig.groups.length
       });
@@ -131,13 +132,13 @@ const Editor = (() => {
   }
 
   /**
-   * 编辑分组
+   * 编辑类别
    */
   async function editGroup(group) {
-    const result = await showModal('编辑分组', `
+    const result = await showModal('编辑类别', `
       <div class="form-group">
-        <label class="form-label">分组名称</label>
-        <input class="form-input" name="name" placeholder="输入分组名称" value="${Icons.escapeHtml(group.name)}">
+        <label class="form-label">类别名称</label>
+        <input class="form-input" name="name" placeholder="输入类别名称" value="${Icons.escapeHtml(group.name)}">
       </div>
       <div class="form-group">
         <label class="form-label">选择图标</label>
@@ -163,16 +164,16 @@ const Editor = (() => {
     config.settings.activeGroupId = groupId;
   }
 
-  // ========== 小分组编辑 ==========
+  // ========== 分组编辑 ==========
 
   /**
-   * 添加小分组
+   * 添加分组
    */
   async function addSubgroup(groupId) {
-    const result = await showModal('添加小分组', `
+    const result = await showModal('添加分组', `
       <div class="form-group">
-        <label class="form-label">小分组名称</label>
-        <input class="form-input" name="name" placeholder="输入小分组名称" value="新文件夹">
+        <label class="form-label">分组名称</label>
+        <input class="form-input" name="name" placeholder="输入分组名称" value="">
       </div>
       <div class="form-group">
         <label class="form-label">选择图标</label>
@@ -186,7 +187,7 @@ const Editor = (() => {
       const group = findGroup(currentConfig, groupId);
       if (group) {
         const subgroup = createSubgroup({
-          name: data.name || '新文件夹',
+          name: data.name || '新分组',
           icon: data._selectedEmoji || '📁',
           order: group.subgroups.length
         });
@@ -199,17 +200,17 @@ const Editor = (() => {
   }
 
   /**
-   * 编辑小分组
+   * 编辑分组
    */
   async function editSubgroup(groupId, subgroupId) {
     const group = findGroup(currentConfig, groupId);
     const subgroup = group ? findSubgroup(group, subgroupId) : null;
     if (!subgroup) return null;
 
-    const result = await showModal('编辑小分组', `
+    const result = await showModal('编辑分组', `
       <div class="form-group">
-        <label class="form-label">小分组名称</label>
-        <input class="form-input" name="name" placeholder="输入小分组名称" value="${Icons.escapeHtml(subgroup.name)}">
+        <label class="form-label">分组名称</label>
+        <input class="form-input" name="name" placeholder="输入分组名称" value="${Icons.escapeHtml(subgroup.name)}">
       </div>
       <div class="form-group">
         <label class="form-label">选择图标</label>
@@ -228,6 +229,58 @@ const Editor = (() => {
     return null;
   }
 
+  /**
+   * 移动分组到其他类别
+   */
+  async function moveSubgroup(groupId, subgroupId) {
+    const sourceGroup = findGroup(currentConfig, groupId);
+    const subgroup = sourceGroup ? findSubgroup(sourceGroup, subgroupId) : null;
+    if (!sourceGroup || !subgroup) return null;
+
+    const targetGroups = currentConfig.groups.filter(group => group.id !== groupId);
+    if (targetGroups.length === 0) {
+      if (typeof showToast === 'function') showToast('没有可移动到的其他类别');
+      return null;
+    }
+
+    const defaultTargetGroup = targetGroups[0];
+    const renderTargetLabel = (group) => `${Icons.escapeHtml(group.icon || '')} ${Icons.escapeHtml(group.name)}`;
+
+    const result = await showModal('移动分组', `
+      <div class="form-group">
+        <label class="form-label">分组</label>
+        <input class="form-input" value="${Icons.escapeHtml(subgroup.name)}" disabled>
+      </div>
+      <div class="form-group">
+        <label class="form-label">移动到类别</label>
+        <div class="form-choice" data-choice>
+          <button type="button" class="form-choice-trigger" data-choice-trigger aria-haspopup="listbox" aria-expanded="false">
+            <span data-choice-label>${renderTargetLabel(defaultTargetGroup)}</span>
+          </button>
+          <input type="hidden" name="targetGroupId" value="${defaultTargetGroup.id}">
+          <div class="form-choice-menu" data-choice-menu role="listbox">
+            ${targetGroups.map((group, index) => `
+              <button type="button"
+                      class="form-choice-option ${index === 0 ? 'selected' : ''}"
+                      data-choice-option
+                      data-value="${group.id}"
+                      role="option"
+                      aria-selected="${index === 0 ? 'true' : 'false'}">
+                <span class="form-choice-check">✓</span>
+                <span class="form-choice-option-label">${renderTargetLabel(group)}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `);
+
+    if (!result) return null;
+
+    const data = getCapturedFormData();
+    return data.targetGroupId || null;
+  }
+
   // ========== 卡片编辑 ==========
 
   /**
@@ -237,24 +290,26 @@ const Editor = (() => {
     const result = await showModal('添加卡片', `
       <div class="form-group">
         <label class="form-label">卡片名称</label>
-        <input class="form-input" name="name" placeholder="输入卡片名称" value="新卡片">
+        <input class="form-input" name="name" placeholder="输入卡片名称" value="">
       </div>
       <div class="form-group">
         <label class="form-label">URL 地址</label>
-        <input class="form-input" name="url" placeholder="https://example.com" value="">
+        <input class="form-input" name="url" id="cardUrlInput" placeholder="https://example.com" value="">
         <span class="form-hint">请输入完整的网址，包含 http:// 或 https://</span>
       </div>
       <div class="form-group">
         <label class="form-label">图标类型</label>
         <div style="display:flex;gap:12px;padding:4px 0;">
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-            <input type="radio" name="iconType" value="favicon" checked> 自动获取图标
+            <input type="radio" name="iconType" value="emoji" checked> Emoji
           </label>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-            <input type="radio" name="iconType" value="emoji"> Emoji
+            <input type="radio" name="iconType" value="favicon"> 自动获取图标
           </label>
         </div>
-        <div id="emojiPickerContainer" style="display:none;">
+        <div id="faviconPreviewContainer" style="display:none;margin-top:8px;"></div>
+        <input type="hidden" name="_fetchedFavicon" id="fetchedFaviconInput" value="">
+        <div id="emojiPickerContainer">
           ${renderEmojiPicker('🌐')}
           <input type="hidden" name="iconValue" value="🌐">
         </div>
@@ -270,14 +325,20 @@ const Editor = (() => {
       const group = findGroup(currentConfig, groupId);
       const subgroup = group ? findSubgroup(group, subgroupId) : null;
       if (subgroup && subgroup.cards.length < 8) {
-        const iconType = data.iconType || 'favicon';
+        const iconType = data.iconType || 'emoji';
+        let iconValue;
+        if (iconType === 'emoji') {
+          iconValue = data._selectedEmoji || '🌐';
+        } else if (iconType === 'custom') {
+          iconValue = data.customIconUrl || '';
+        } else {
+          iconValue = data._fetchedFavicon || getCachedFavicon(data.url) || '';
+        }
         const card = createCard({
           name: data.name || '新卡片',
           url: data.url || '',
           iconType: iconType,
-          iconValue: iconType === 'emoji'
-            ? (data._selectedEmoji || '🌐')
-            : (iconType === 'custom' ? (data.customIconUrl || '') : ''),
+          iconValue: iconValue,
           order: subgroup.cards.length
         });
         subgroup.cards.push(card);
@@ -297,6 +358,10 @@ const Editor = (() => {
     const card = subgroup ? findCard(subgroup, cardId) : null;
     if (!card) return null;
 
+    const isEmoji = card.iconType === 'emoji';
+    const isFavicon = card.iconType === 'favicon';
+    const isCustom = card.iconType === 'custom';
+
     const result = await showModal('编辑卡片', `
       <div class="form-group">
         <label class="form-label">卡片名称</label>
@@ -304,33 +369,37 @@ const Editor = (() => {
       </div>
       <div class="form-group">
         <label class="form-label">URL 地址</label>
-        <input class="form-input" name="url" placeholder="https://example.com" value="${Icons.escapeHtml(card.url || '')}">
+        <input class="form-input" name="url" id="cardUrlInput" placeholder="https://example.com" value="${Icons.escapeHtml(card.url || '')}">
         <span class="form-hint">请输入完整的网址，包含 http:// 或 https://</span>
       </div>
       <div class="form-group">
         <label class="form-label">图标类型</label>
         <div style="display:flex;gap:12px;padding:4px 0;">
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-            <input type="radio" name="iconType" value="favicon" ${card.iconType === 'favicon' ? 'checked' : ''}> 自动获取图标
+            <input type="radio" name="iconType" value="emoji" ${isEmoji ? 'checked' : ''}> Emoji
           </label>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
-            <input type="radio" name="iconType" value="emoji" ${card.iconType === 'emoji' ? 'checked' : ''}> Emoji
+            <input type="radio" name="iconType" value="favicon" ${isFavicon ? 'checked' : ''}> 自动获取图标
           </label>
         </div>
-        <div id="emojiPickerContainer" style="display:${card.iconType === 'emoji' ? 'block' : 'none'};">
-          ${renderEmojiPicker(card.iconType === 'emoji' ? card.iconValue : '🌐')}
+        <div id="faviconPreviewContainer" style="display:none;margin-top:8px;"></div>
+        <input type="hidden" name="_fetchedFavicon" id="fetchedFaviconInput" value="${isFavicon ? Icons.escapeHtml(card.iconValue || '') : ''}">
+        <div id="emojiPickerContainer" style="display:${isEmoji ? 'block' : 'none'};">
+          ${renderEmojiPicker(isEmoji ? card.iconValue : '🌐')}
           <input type="hidden" name="iconValue" value="${Icons.escapeHtml(card.iconValue || '')}">
         </div>
-        <div class="form-group" id="customIconGroup" style="display:${card.iconType === 'custom' ? 'block' : 'none'};">
+        <div class="form-group" id="customIconGroup" style="display:${isCustom ? 'block' : 'none'};">
           <label class="form-label">自定义图片 URL</label>
-          <input class="form-input" name="customIconUrl" placeholder="https://..." value="${Icons.escapeHtml(card.iconType === 'custom' ? card.iconValue : '')}">
+          <input class="form-input" name="customIconUrl" placeholder="https://..." value="${Icons.escapeHtml(isCustom ? card.iconValue : '')}">
         </div>
       </div>
     `);
 
     if (result) {
       const data = getCapturedFormData();
-      const iconType = data.iconType || 'favicon';
+      const iconType = data.iconType || 'emoji';
+      const previousIconType = card.iconType;
+      const previousIconValue = card.iconValue;
       card.name = data.name || card.name;
       card.url = data.url || card.url;
       card.iconType = iconType;
@@ -339,7 +408,8 @@ const Editor = (() => {
       } else if (iconType === 'custom') {
         card.iconValue = data.customIconUrl || '';
       } else {
-        card.iconValue = ''; // favicon 类型将由 Favicons 模块自动获取
+        // favicon: 优先使用本次获取的，否则保留原有值
+        card.iconValue = data._fetchedFavicon || getCachedFavicon(data.url) || (previousIconType === 'favicon' ? previousIconValue : '') || '';
       }
       card.updatedAt = now();
       return card;
@@ -354,16 +424,121 @@ const Editor = (() => {
     const radios = document.querySelectorAll('input[name="iconType"]');
     const emojiContainer = document.getElementById('emojiPickerContainer');
     const customIconGroup = document.getElementById('customIconGroup');
+    const faviconPreviewContainer = document.getElementById('faviconPreviewContainer');
+    const urlInput = document.getElementById('cardUrlInput');
+    let faviconFetchToken = 0;
+    let faviconDebounceTimer = null;
 
     function toggle() {
       const selected = document.querySelector('input[name="iconType"]:checked');
       if (emojiContainer) emojiContainer.style.display = selected?.value === 'emoji' ? 'block' : 'none';
       if (customIconGroup) customIconGroup.style.display = selected?.value === 'custom' ? 'block' : 'none';
+
+      if (faviconPreviewContainer) {
+        faviconPreviewContainer.style.display = selected?.value === 'favicon' ? 'block' : 'none';
+      }
+
+      if (selected?.value === 'favicon') {
+        updateFaviconPreview();
+      }
     }
 
     radios.forEach(radio => {
       radio.addEventListener('change', toggle);
     });
+
+    if (urlInput) {
+      urlInput.addEventListener('input', () => {
+        const selected = document.querySelector('input[name="iconType"]:checked');
+        if (selected?.value !== 'favicon') return;
+
+        clearTimeout(faviconDebounceTimer);
+        faviconDebounceTimer = setTimeout(updateFaviconPreview, 350);
+      });
+    }
+
+    toggle();
+
+    function updateFaviconPreview() {
+      if (!faviconPreviewContainer || !urlInput) return;
+
+      const url = urlInput.value.trim();
+      const hiddenInput = document.getElementById('fetchedFaviconInput');
+      if (hiddenInput) hiddenInput.value = '';
+
+      if (!isUsableHttpUrl(url)) {
+        faviconPreviewContainer.innerHTML = renderFaviconPreview({
+          status: '请输入可访问的 http:// 或 https:// URL',
+          state: 'error',
+          iconHtml: '<span class="favicon-placeholder">🌐</span>',
+          loading: false
+        });
+        return;
+      }
+
+      const token = ++faviconFetchToken;
+      faviconPreviewContainer.innerHTML = renderFaviconPreview({
+        status: '正在获取网站图标...',
+        state: '',
+        iconHtml: '<span class="favicon-placeholder">🌐</span>',
+        loading: true
+      });
+
+      Favicons.fetchForDomain(url, currentConfig).then((favicon) => {
+        if (token !== faviconFetchToken) return;
+
+        if (favicon) {
+          if (hiddenInput) hiddenInput.value = favicon;
+          faviconPreviewContainer.innerHTML = renderFaviconPreview({
+            status: '图标获取成功',
+            state: 'success',
+            iconHtml: `<img src="${Icons.escapeHtml(favicon)}" alt="">`,
+            loading: false
+          });
+        } else {
+          faviconPreviewContainer.innerHTML = renderFaviconPreview({
+            status: '未能获取图标，请检查 URL 或稍后重试',
+            state: 'error',
+            iconHtml: '<span class="favicon-placeholder">🌐</span>',
+            loading: false
+          });
+        }
+      });
+    }
+  }
+
+  function renderFaviconPreview({ status, state, iconHtml, loading }) {
+    return `
+      <div class="favicon-preview-panel">
+        <div class="favicon-preview-icon">${iconHtml}</div>
+        <div class="favicon-preview-meta">
+          <div class="favicon-preview-status ${state || ''}">${Icons.escapeHtml(status)}</div>
+          ${loading ? '<div class="favicon-progress"><div class="favicon-progress-bar"></div></div>' : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function isUsableHttpUrl(value) {
+    try {
+      const url = new URL(value);
+      return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  function getCachedFavicon(urlValue) {
+    try {
+      if (!currentConfig || !urlValue) return '';
+      const domain = new URL(urlValue).hostname;
+      const entry = currentConfig._faviconCache?.[domain];
+      if (typeof entry === 'string') return entry;
+      if (entry && entry.value) return entry.value;
+    } catch {
+      // 忽略无效 URL
+    }
+    return '';
   }
 
   // ========== 删除操作 ==========
@@ -469,7 +644,67 @@ const Editor = (() => {
         hiddenInput.value = option.dataset.emoji;
       }
     }
+
+    const choiceTrigger = e.target.closest('[data-choice-trigger]');
+    if (choiceTrigger) {
+      const choice = choiceTrigger.closest('[data-choice]');
+      document.querySelectorAll('#modalBody [data-choice].open').forEach(item => {
+        if (item !== choice) {
+          item.classList.remove('open', 'open-up');
+          item.querySelector('[data-choice-trigger]')?.setAttribute('aria-expanded', 'false');
+        }
+      });
+      const isOpen = choice.classList.toggle('open');
+      choiceTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      if (isOpen) {
+        updateChoiceMenuPlacement(choice);
+      } else {
+        choice.classList.remove('open-up');
+      }
+      return;
+    }
+
+    const choiceOption = e.target.closest('[data-choice-option]');
+    if (choiceOption) {
+      const choice = choiceOption.closest('[data-choice]');
+      const hiddenInput = choice.querySelector('input[type="hidden"]');
+      const label = choice.querySelector('[data-choice-label]');
+      const trigger = choice.querySelector('[data-choice-trigger]');
+      const optionLabel = choiceOption.querySelector('.form-choice-option-label');
+
+      choice.querySelectorAll('[data-choice-option]').forEach(item => {
+        item.classList.remove('selected');
+        item.setAttribute('aria-selected', 'false');
+      });
+      choiceOption.classList.add('selected');
+      choiceOption.setAttribute('aria-selected', 'true');
+
+      if (hiddenInput) hiddenInput.value = choiceOption.dataset.value || '';
+      if (label && optionLabel) label.textContent = optionLabel.textContent;
+      choice.classList.remove('open');
+      choice.classList.remove('open-up');
+      if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    }
   });
+
+  function updateChoiceMenuPlacement(choice) {
+    const menu = choice.querySelector('[data-choice-menu]');
+    const trigger = choice.querySelector('[data-choice-trigger]');
+    const modalBox = document.getElementById('modalBox');
+    if (!menu || !trigger || !modalBox) return;
+
+    const gap = 8;
+    const minHeight = 72;
+    const triggerRect = trigger.getBoundingClientRect();
+    const modalRect = modalBox.getBoundingClientRect();
+    const spaceBelow = modalRect.bottom - triggerRect.bottom - gap;
+    const spaceAbove = triggerRect.top - modalRect.top - gap;
+    const openUp = spaceBelow < minHeight && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(minHeight, Math.floor((openUp ? spaceAbove : spaceBelow) - gap));
+
+    choice.classList.toggle('open-up', openUp);
+    menu.style.maxHeight = `${Math.min(180, availableHeight)}px`;
+  }
 
   // 键盘 Esc 关闭弹窗
   document.addEventListener('keydown', (e) => {
@@ -486,6 +721,7 @@ const Editor = (() => {
     setActiveGroup,
     addSubgroup,
     editSubgroup,
+    moveSubgroup,
     addCard,
     editCard,
     deleteItem,
