@@ -31,7 +31,7 @@ const Storage = (() => {
         return mergeDefaults(result[STORAGE_KEY], getDefaultConfig());
       }
       const defaults = getDefaultConfig();
-      await saveConfig(defaults);
+      await saveConfig(defaults, { markDirty: false });
       return defaults;
     } catch (error) {
       console.error('Storage.loadConfig error:', error);
@@ -42,9 +42,12 @@ const Storage = (() => {
   /**
    * 保存配置
    */
-  async function saveConfig(config) {
+  async function saveConfig(config, options = {}) {
     try {
       await chrome.storage.local.set({ [STORAGE_KEY]: config });
+      if (options.markDirty !== false && typeof GistSync !== 'undefined') {
+        await GistSync.markLocalUpdated(config);
+      }
     } catch (error) {
       console.error('Storage.saveConfig error:', error);
       throw error;

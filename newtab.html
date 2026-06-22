@@ -16,7 +16,10 @@
     <!-- 左侧分组导航 -->
     <nav id="sidebar" class="sidebar">
       <div id="groupList" class="group-list"></div>
-      <button id="addGroupBtn" class="sidebar-add-btn" title="添加分组">＋</button>
+      <div class="sidebar-actions">
+        <button id="settingsBtn" class="sidebar-icon-btn" title="配置">⚙</button>
+        <button id="addGroupBtn" class="sidebar-add-btn" title="添加分组">＋</button>
+      </div>
     </nav>
 
     <!-- 右侧内容区 -->
@@ -63,6 +66,7 @@
 
   <!-- JavaScript -->
   <script src="js/storage.js"></script>
+  <script src="js/gist-sync.js"></script>
   <script src="js/default-data.js"></script>
   <script src="js/models.js"></script>
   <script src="js/icons.js"></script>

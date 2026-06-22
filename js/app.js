@@ -7,6 +7,7 @@
   let config = null;
   let deleteTimer = null;
   let deleteInfo = null;
+  let activeSyncAbort = null;
 
   // ========== 初始化 ==========
 
@@ -17,7 +18,7 @@
     // 首次使用，加载示例数据
     if (!config.groups || config.groups.length === 0) {
       config = getDefaultSampleConfig();
-      await Storage.saveConfig(config);
+      await Storage.saveConfig(config, { markDirty: false });
     }
 
     // 渲染页面
@@ -32,6 +33,8 @@
     // 监听存储变化（多标签页同步）
     Storage.onConfigChanged((newConfig) => {
       config = newConfig;
+      applyTheme(config.settings.theme);
+      updateThemeButtonIcon(config.settings.theme);
       Renderer.renderAll(config);
     });
 
@@ -61,6 +64,9 @@
         Storage.saveConfig(config);
       }
     });
+
+    // 配置
+    document.getElementById('settingsBtn').addEventListener('click', openSettingsModal);
 
     // 添加小分组
     document.getElementById('addSubgroupBtn').addEventListener('click', async () => {
@@ -416,6 +422,7 @@
     const themeBtn = document.getElementById('themeBtn');
     // 初始化主题
     applyTheme(config.settings.theme);
+    updateThemeButtonIcon(config.settings.theme);
 
     themeBtn.addEventListener('click', () => {
       const themes = ['auto', 'light', 'dark'];
@@ -424,20 +431,8 @@
       config.settings.theme = nextTheme;
       applyTheme(nextTheme);
       Storage.saveConfig(config);
-
-      const labels = { auto: '🌓', light: '☀️', dark: '🌙' };
-      const iconSpan = themeBtn.querySelector('.toolbar-btn-icon');
-      if (iconSpan) {
-        iconSpan.textContent = labels[nextTheme];
-      }
+      updateThemeButtonIcon(nextTheme);
     });
-
-    // 设置初始图标
-    const labels = { auto: '🌓', light: '☀️', dark: '🌙' };
-    const initIconSpan = themeBtn.querySelector('.toolbar-btn-icon');
-    if (initIconSpan) {
-      initIconSpan.textContent = labels[config.settings.theme] || '🌓';
-    }
   }
 
   function applyTheme(theme) {
@@ -446,6 +441,199 @@
     } else {
       document.documentElement.setAttribute('data-theme', theme);
     }
+  }
+
+  function updateThemeButtonIcon(theme) {
+    const labels = { auto: '🌓', light: '☀️', dark: '🌙' };
+    const iconSpan = document.querySelector('#themeBtn .toolbar-btn-icon');
+    if (iconSpan) {
+      iconSpan.textContent = labels[theme] || '🌓';
+    }
+  }
+
+  // ========== 配置 ==========
+
+  async function openSettingsModal() {
+    const settings = await GistSync.loadSettings();
+    const modalPromise = Editor.showModal('配置', renderSettingsModal(settings));
+    const confirmBtn = document.getElementById('modalConfirm');
+    const cancelBtn = document.getElementById('modalCancel');
+    const oldConfirmText = confirmBtn.textContent;
+
+    confirmBtn.textContent = '关闭';
+    cancelBtn.classList.add('hidden');
+    bindSettingsModalEvents();
+
+    await modalPromise;
+    if (activeSyncAbort) {
+      activeSyncAbort.abort();
+      activeSyncAbort = null;
+    }
+
+    confirmBtn.textContent = oldConfirmText;
+    cancelBtn.classList.remove('hidden');
+  }
+
+  function renderSettingsModal(settings) {
+    const accountName = settings.account?.name || settings.account?.login || '未授权';
+    const gistLabel = settings.gistId ? `Gist：${settings.gistId}` : '首次同步会自动创建私有 Gist';
+    const versionLabel = `同步版本：${Number(settings.syncVersion || 0)}`;
+
+    return `
+      <div class="settings-panel">
+        <section class="settings-section">
+          <div class="settings-section-header">
+            <div>
+              <div class="settings-section-title">GitHub Gist 同步</div>
+              <div class="settings-section-desc">点击同步后生成随机码，打开 GitHub 填入随机码授权。</div>
+            </div>
+            <span class="sync-file-badge">JSON</span>
+          </div>
+
+          <div class="sync-account">
+            ${settings.account?.avatarUrl ? `<img class="sync-avatar" src="${Icons.escapeHtml(settings.account.avatarUrl)}" alt="">` : '<div class="sync-avatar sync-avatar-placeholder">GH</div>'}
+            <div class="sync-account-meta">
+              <div class="sync-account-name">${Icons.escapeHtml(accountName)}</div>
+              <div class="sync-account-detail">${Icons.escapeHtml(gistLabel)} · ${Icons.escapeHtml(versionLabel)}</div>
+            </div>
+          </div>
+
+          <div id="deviceFlowPanel" class="device-flow-panel hidden">
+            <div class="device-flow-label">GitHub 授权码</div>
+            <div id="githubUserCode" class="device-flow-code"></div>
+            <div class="device-flow-actions">
+              <button id="copyGitHubCodeBtn" class="btn btn-secondary" type="button">复制随机码</button>
+              <button id="openGitHubAuthBtn" class="btn btn-secondary" type="button">打开 GitHub</button>
+            </div>
+          </div>
+
+          <div class="settings-actions">
+            <button id="disconnectGistBtn" class="btn btn-secondary" type="button" ${settings.connected ? '' : 'disabled'}>断开连接</button>
+            <button id="syncGistBtn" class="btn btn-primary" type="button">同步</button>
+          </div>
+
+          <div id="gistSyncStatus" class="sync-status">
+            上次同步：${GistSync.formatSyncTime(settings.lastSyncedAt)}。只同步配置数据，不同步 Token。
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
+  function bindSettingsModalEvents() {
+    const statusEl = document.getElementById('gistSyncStatus');
+    const deviceFlowPanel = document.getElementById('deviceFlowPanel');
+    const githubUserCode = document.getElementById('githubUserCode');
+    const copyGitHubCodeBtn = document.getElementById('copyGitHubCodeBtn');
+    const openGitHubAuthBtn = document.getElementById('openGitHubAuthBtn');
+    const syncBtn = document.getElementById('syncGistBtn');
+    const disconnectBtn = document.getElementById('disconnectGistBtn');
+    const actionButtons = Array.from(document.querySelectorAll('.settings-actions .btn'));
+    let deviceFlow = null;
+
+    function setBusy(isBusy) {
+      actionButtons.forEach(button => {
+        button.disabled = isBusy;
+      });
+      if (!isBusy) {
+        GistSync.loadSettings().then(settings => {
+          disconnectBtn.disabled = !settings.connected;
+        });
+      }
+    }
+
+    function setStatus(message, state = '') {
+      statusEl.className = `sync-status${state ? ` sync-status-${state}` : ''}`;
+      statusEl.textContent = message;
+    }
+
+    async function runSync() {
+      try {
+        setBusy(true);
+        activeSyncAbort = new AbortController();
+
+        let settings = await GistSync.loadSettings();
+        if (!settings.connected || !settings.token) {
+          setStatus('正在生成 GitHub 授权随机码...', 'loading');
+          deviceFlow = await GistSync.startDeviceFlow();
+          deviceFlowPanel.classList.remove('hidden');
+          githubUserCode.textContent = deviceFlow.userCode;
+          openGitHubAuthBtn.dataset.authUrl = deviceFlow.verificationUri;
+
+          window.open(deviceFlow.verificationUri, '_blank', 'noopener,noreferrer');
+          setStatus('请在打开的 GitHub 页面输入随机码，授权后会自动继续同步。', 'loading');
+
+          settings = await GistSync.authorize(
+            deviceFlow,
+            () => setStatus('等待 GitHub 授权完成...', 'loading'),
+            activeSyncAbort.signal
+          );
+          setStatus(`已授权 GitHub：${settings.account?.login || settings.account?.name || ''}，正在同步...`, 'loading');
+        } else {
+          setStatus('正在同步配置...', 'loading');
+        }
+
+        const result = await GistSync.syncConfig(config, { signal: activeSyncAbort.signal });
+        config = result.config;
+        await Storage.saveConfig(config, { markDirty: false });
+        applyTheme(config.settings.theme);
+        updateThemeButtonIcon(config.settings.theme);
+        Renderer.renderAll(config);
+
+        const actionLabels = {
+          created: '已创建私有 Gist 并上传配置',
+          pushed: '已上传本地配置到 Gist',
+          pulled: '已从 Gist 拉取较新的配置',
+          noop: '本地和服务器配置已一致'
+        };
+        setStatus(`${actionLabels[result.action] || '同步完成'}。同步版本：${result.settings.syncVersion}。上次同步：${GistSync.formatSyncTime(result.settings.lastSyncedAt)}`, 'success');
+        showToast('Gist 同步完成');
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          setStatus('同步已取消', 'error');
+        } else {
+          setStatus(`同步失败：${error.message}`, 'error');
+          showToast('同步失败：' + error.message, 4000);
+        }
+      } finally {
+        activeSyncAbort = null;
+        setBusy(false);
+      }
+    }
+
+    syncBtn.addEventListener('click', runSync);
+
+    disconnectBtn.addEventListener('click', async () => {
+      if (!confirm('断开后会删除本机保存的 GitHub 授权信息，远端 Gist 不会删除。是否继续？')) {
+        return;
+      }
+
+      if (activeSyncAbort) {
+        activeSyncAbort.abort();
+        activeSyncAbort = null;
+      }
+      await GistSync.disconnect();
+      deviceFlowPanel.classList.add('hidden');
+      setStatus('已断开 GitHub Gist 同步', 'success');
+      disconnectBtn.disabled = true;
+      showToast('已断开 Gist 同步');
+    });
+
+    copyGitHubCodeBtn.addEventListener('click', () => {
+      if (!deviceFlow?.userCode) return;
+      navigator.clipboard.writeText(deviceFlow.userCode).then(() => {
+        setStatus('随机码已复制，请在 GitHub 页面粘贴。', 'success');
+      }).catch(() => {
+        setStatus('复制失败，请手动复制随机码。', 'error');
+      });
+    });
+
+    openGitHubAuthBtn.addEventListener('click', () => {
+      const url = openGitHubAuthBtn.dataset.authUrl;
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    });
   }
 
   // ========== Toast 提示 ==========
