@@ -1,0 +1,112 @@
+/* 小分组（文件夹）样式 */
+.subgroup {
+  background: var(--bg-subgroup);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+}
+
+.subgroup.compact {
+  width: 320px;
+}
+
+.subgroup.comfortable {
+  width: 400px;
+}
+
+/* 小分组标题栏 */
+.subgroup-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.subgroup-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.subgroup-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subgroup-name-input {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--accent-color);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
+}
+
+/* 小分组操作按钮 */
+.subgroup-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.subgroup-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-tertiary);
+  transition: all var(--transition-fast);
+}
+
+.subgroup-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.subgroup-action-btn.mode-btn {
+  font-size: 11px;
+}
+
+/* 卡片网格 */
+.subgroup-cards {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.subgroup.compact .subgroup-cards {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.subgroup.comfortable .subgroup-cards {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+/* 拖拽样式 */
+.subgroup.drag-over {
+  border-color: var(--accent-color);
+  box-shadow: var(--shadow-md);
+  transform: scale(1.02);
+}
+
+.subgroup.dragging {
+  opacity: 0.5;
+}

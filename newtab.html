@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>希望导航仪表台</title>
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/sidebar.css">
+  <link rel="stylesheet" href="css/subgroup.css">
+  <link rel="stylesheet" href="css/card.css">
+  <link rel="stylesheet" href="css/modal.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- 左侧分组导航 -->
+    <nav id="sidebar" class="sidebar">
+      <div id="groupList" class="group-list"></div>
+      <button id="addGroupBtn" class="sidebar-add-btn" title="添加分组">＋</button>
+    </nav>
+
+    <!-- 右侧内容区 -->
+    <main id="content" class="content-area">
+      <div id="toolbar" class="toolbar">
+        <button id="exportBtn" class="toolbar-btn" title="导出配置">
+          <span class="toolbar-btn-icon">📤</span>
+          <span class="toolbar-btn-text">导出</span>
+        </button>
+        <button id="importBtn" class="toolbar-btn" title="导入配置">
+          <span class="toolbar-btn-icon">📥</span>
+          <span class="toolbar-btn-text">导入</span>
+        </button>
+        <button id="themeBtn" class="toolbar-btn toolbar-btn-icon-only" title="切换主题">
+          <span class="toolbar-btn-icon">🌓</span>
+        </button>
+        <input type="file" id="importFile" accept=".json" class="hidden">
+      </div>
+      <div id="subgroupGrid" class="subgroup-grid"></div>
+      <button id="addSubgroupBtn" class="content-add-btn" title="添加小分组">＋ 添加小分组</button>
+    </main>
+  </div>
+
+  <!-- 编辑弹窗 -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div id="modalBox" class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalTitle">编辑</h3>
+        <button id="modalClose" class="modal-close">✕</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+      <div class="modal-footer">
+        <button id="modalCancel" class="btn btn-secondary">取消</button>
+        <button id="modalConfirm" class="btn btn-primary">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右键菜单 -->
+  <div id="contextMenu" class="context-menu hidden"></div>
+
+  <!-- Toast 提示 -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- JavaScript -->
+  <script src="js/storage.js"></script>
+  <script src="js/default-data.js"></script>
+  <script src="js/models.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/favicon.js"></script>
+  <script src="js/card.js"></script>
+  <script src="js/subgroup.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

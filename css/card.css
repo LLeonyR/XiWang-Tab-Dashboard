@@ -1,0 +1,117 @@
+/* 导航卡片样式 */
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.subgroup.compact .card {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 4px;
+}
+
+.subgroup.comfortable .card {
+  width: 100%;
+  padding: 8px 4px;
+  min-height: 76px;
+  gap: 4px;
+}
+
+.card:hover {
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.card:active {
+  transform: scale(0.95);
+}
+
+/* 卡片图标 */
+.card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.subgroup.compact .card-icon {
+  width: 32px;
+  height: 32px;
+  font-size: 24px;
+}
+
+.subgroup.comfortable .card-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 28px;
+}
+
+.card-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.card-icon .emoji-icon {
+  line-height: 1;
+}
+
+/* 卡片名称 - 单行截断 */
+.card-name {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: keep-all;
+  color: var(--text-secondary);
+  width: 100%;
+  max-width: 100%;
+}
+
+.subgroup.compact .card-name {
+  font-size: 10px;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.subgroup.comfortable .card-name {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+/* 卡片内联编辑输入框 */
+.card-name-input {
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  border: 1px solid var(--accent-color);
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.subgroup.compact .card-name-input {
+  font-size: 10px;
+}
+
+/* 拖拽中的卡片 */
+.card.dragging {
+  opacity: 0.4;
+  transform: scale(0.9);
+}
+
+.card.drag-over {
+  box-shadow: inset 0 0 0 2px var(--accent-color);
+}

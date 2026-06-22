@@ -1,0 +1,119 @@
+/* 左侧分组导航栏 */
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 12px 0;
+  gap: 4px;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+.sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 分组列表容器 */
+.group-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+/* 分组项 */
+.group-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  padding: 6px 4px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  position: relative;
+  scroll-snap-align: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.group-item:hover {
+  background: var(--bg-hover);
+  transform: scale(1.05);
+}
+
+.group-item.active {
+  background: var(--accent-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.group-item.active .group-item-name {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.group-item.active::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  background: var(--accent-color);
+  border-radius: 0 3px 3px 0;
+}
+
+/* 分组图标 */
+.group-item-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* 分组名称 - 单行截断 */
+.group-item-name {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  text-align: center;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
+}
+
+/* 添加分组按钮 */
+.sidebar-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 18px;
+  color: var(--text-tertiary);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.sidebar-add-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent-color);
+}
+
+/* 拖拽中的分组 */
+.group-item.dragging {
+  opacity: 0.4;
+}
