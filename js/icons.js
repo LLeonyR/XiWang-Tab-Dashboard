@@ -25,21 +25,16 @@ const Icons = (() => {
 
   /**
    * 渲染 favicon 图片
+   * 只渲染已缓存的 base64 值，无缓存时显示回退图标
+   * 实际获取由 Favicons.fetchAllForConfig 异步完成
    */
   function renderFaviconImg(card) {
     if (card.iconValue) {
       return `<img src="${escapeHtml(card.iconValue)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
         <span class="emoji-icon" style="display:none">🌐</span>`;
     }
-    // 没有缓存的 favicon，尝试自动获取
-    try {
-      const domain = new URL(card.url).hostname;
-      const googleFavicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-      return `<img src="${googleFavicon}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
-        <span class="emoji-icon" style="display:none">🌐</span>`;
-    } catch {
-      return `<span class="emoji-icon">🌐</span>`;
-    }
+    // 无缓存，显示回退图标（后台获取完成后会自动刷新）
+    return `<span class="emoji-icon">🌐</span>`;
   }
 
   /**

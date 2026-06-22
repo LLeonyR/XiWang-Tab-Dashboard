@@ -43,12 +43,7 @@
       ? requestIdleCallback
       : (fn) => setTimeout(fn, 100);
 
-    scheduleTask(() => {
-      Favicons.fetchAllForConfig(config).then(() => {
-        Renderer.refreshContent();
-        Storage.saveConfig(config);
-      });
-    });
+    scheduleTask(refreshFavicons);
   }
 
   // ========== 全局事件绑定 ==========
@@ -412,6 +407,7 @@
         config = newConfig;
         Renderer.renderAll(config);
         showToast('配置已导入');
+        refreshFavicons();
       } catch (error) {
         showToast('导入失败：' + error.message);
       }
@@ -441,6 +437,13 @@
     } else {
       document.documentElement.setAttribute('data-theme', theme);
     }
+  }
+
+  function refreshFavicons() {
+    return Favicons.fetchAllForConfig(config).then(() => {
+      Renderer.refreshContent();
+      return Storage.saveConfig(config, { markDirty: false });
+    });
   }
 
   function updateThemeButtonIcon(theme) {
@@ -490,7 +493,7 @@
             <span class="sync-file-badge">JSON</span>
           </div>
 
-          <div class="sync-account">
+          <div id="syncAccountInfo" class="sync-account">
             ${settings.account?.avatarUrl ? `<img class="sync-avatar" src="${Icons.escapeHtml(settings.account.avatarUrl)}" alt="">` : '<div class="sync-avatar sync-avatar-placeholder">GH</div>'}
             <div class="sync-account-meta">
               <div class="sync-account-name">${Icons.escapeHtml(accountName)}</div>
@@ -508,7 +511,7 @@
           </div>
 
           <div class="settings-actions">
-            <button id="disconnectGistBtn" class="btn btn-secondary" type="button" ${settings.connected ? '' : 'disabled'}>断开连接</button>
+            <button id="disconnectGistBtn" class="btn btn-secondary" type="button" ${settings.connected ? '' : 'style="display:none"'}>断开连接</button>
             <button id="syncGistBtn" class="btn btn-primary" type="button">同步</button>
           </div>
 
@@ -537,7 +540,12 @@
       });
       if (!isBusy) {
         GistSync.loadSettings().then(settings => {
-          disconnectBtn.disabled = !settings.connected;
+          if (settings.connected) {
+            disconnectBtn.style.display = '';
+            disconnectBtn.disabled = false;
+          } else {
+            disconnectBtn.style.display = 'none';
+          }
         });
       }
     }
@@ -560,14 +568,14 @@
           githubUserCode.textContent = deviceFlow.userCode;
           openGitHubAuthBtn.dataset.authUrl = deviceFlow.verificationUri;
 
-          window.open(deviceFlow.verificationUri, '_blank', 'noopener,noreferrer');
-          setStatus('请在打开的 GitHub 页面输入随机码，授权后会自动继续同步。', 'loading');
+          setStatus('请点击下方按钮打开 GitHub 页面并输入随机码，授权后会自动继续同步。', 'loading');
 
           settings = await GistSync.authorize(
             deviceFlow,
             () => setStatus('等待 GitHub 授权完成...', 'loading'),
             activeSyncAbort.signal
           );
+          deviceFlowPanel.classList.add('hidden');
           setStatus(`已授权 GitHub：${settings.account?.login || settings.account?.name || ''}，正在同步...`, 'loading');
         } else {
           setStatus('正在同步配置...', 'loading');
@@ -587,6 +595,27 @@
           noop: '本地和服务器配置已一致'
         };
         setStatus(`${actionLabels[result.action] || '同步完成'}。同步版本：${result.settings.syncVersion}。上次同步：${GistSync.formatSyncTime(result.settings.lastSyncedAt)}`, 'success');
+
+        // 同步成功后刷新账户信息显示
+        const accountInfoEl = document.getElementById('syncAccountInfo');
+        if (accountInfoEl) {
+          const acct = result.settings.account || {};
+          const acctName = acct.name || acct.login || '未授权';
+          const gistId = result.settings.gistId || '';
+          const gistLabel = gistId ? `Gist：${gistId}` : '首次同步会自动创建私有 Gist';
+          const versionLabel = `同步版本：${Number(result.settings.syncVersion || 0)}`;
+          accountInfoEl.innerHTML = `
+            ${acct.avatarUrl ? `<img class="sync-avatar" src="${Icons.escapeHtml(acct.avatarUrl)}" alt="">` : '<div class="sync-avatar sync-avatar-placeholder">GH</div>'}
+            <div class="sync-account-meta">
+              <div class="sync-account-name">${Icons.escapeHtml(acctName)}</div>
+              <div class="sync-account-detail">${Icons.escapeHtml(gistLabel)} · ${Icons.escapeHtml(versionLabel)}</div>
+            </div>
+          `;
+        }
+        // 显示断开连接按钮
+        disconnectBtn.style.display = '';
+        disconnectBtn.disabled = false;
+
         showToast('Gist 同步完成');
       } catch (error) {
         if (error.name === 'AbortError') {
@@ -614,8 +643,25 @@
       }
       await GistSync.disconnect();
       deviceFlowPanel.classList.add('hidden');
+
+      // 重置账户显示为未授权初始状态
+      const accountInfoEl = document.getElementById('syncAccountInfo');
+      if (accountInfoEl) {
+        accountInfoEl.innerHTML = `
+          <div class="sync-avatar sync-avatar-placeholder">GH</div>
+          <div class="sync-account-meta">
+            <div class="sync-account-name">未授权</div>
+            <div class="sync-account-detail">首次同步会自动创建私有 Gist · 同步版本：0</div>
+          </div>
+        `;
+      }
+
+      // 隐藏断开连接按钮
+      disconnectBtn.style.display = 'none';
+
+      // 更新同步状态提示
+      statusEl.textContent = '尚未同步。只同步配置数据，不同步 Token。';
       setStatus('已断开 GitHub Gist 同步', 'success');
-      disconnectBtn.disabled = true;
       showToast('已断开 Gist 同步');
     });
 
