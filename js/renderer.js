@@ -47,7 +47,7 @@ const Renderer = (() => {
       grid.innerHTML = `
         <div style="padding:40px;text-align:center;color:var(--text-tertiary);width:100%;">
           <div style="font-size:48px;margin-bottom:12px;">📂</div>
-          <div style="font-size:14px;">点击下方按钮添加小分组</div>
+          <div style="font-size:14px;">点击下方按钮添加分组</div>
         </div>`;
       return;
     }
@@ -55,7 +55,7 @@ const Renderer = (() => {
     const sorted = [...group.subgroups].sort((a, b) => a.order - b.order);
     grid.innerHTML = sorted.map(sg => SubgroupComponent.render(sg)).join('');
 
-    // 绑定小分组拖拽事件（这些是针对新元素的，需要每次绑定）
+    // 绑定分组拖拽事件（这些是针对新元素的，需要每次绑定）
     sorted.forEach(sg => {
       const el = grid.querySelector(`[data-subgroup-id="${sg.id}"]`);
       if (el) {
@@ -154,7 +154,7 @@ const Renderer = (() => {
         return;
       }
 
-      // 双击小分组名称 - 内联编辑
+      // 双击分组名称 - 内联编辑
       const nameEl = e.target.closest('.subgroup-name');
       if (nameEl) {
         const subgroupId = nameEl.dataset.subgroupName;
@@ -207,6 +207,20 @@ const Renderer = (() => {
           if (result) {
             refreshContent();
             Storage.saveConfig(config);
+          }
+        }
+        break;
+      }
+
+      case 'move-subgroup': {
+        const subgroup = findSubgroupInCurrentGroup(subgroupId);
+        if (subgroup) {
+          const targetGroupId = await Editor.moveSubgroup(currentGroup.id, subgroupId);
+          if (targetGroupId && moveSubgroupToGroup(currentGroup.id, subgroupId, targetGroupId)) {
+            config.settings.activeGroupId = targetGroupId;
+            renderAll(config);
+            Storage.saveConfig(config);
+            showToast('分组已移动');
           }
         }
         break;
@@ -271,7 +285,7 @@ const Renderer = (() => {
   }
 
   /**
-   * 内联编辑小分组名称
+   * 内联编辑分组名称
    */
   function startSubgroupNameEdit(nameEl, subgroup) {
     if (nameEl.querySelector('input')) return;
@@ -325,7 +339,7 @@ const Renderer = (() => {
 
       if (!dragData) return;
 
-      // 处理卡片拖拽（可以拖到另一个卡片或小分组容器上）
+      // 处理卡片拖拽（可以拖到另一个卡片或分组容器上）
       if (dragData.type === 'card') {
         const draggedCardId = dragData.cardId;
         const draggedCard = findCardInCurrentGroup(draggedCardId);
@@ -348,14 +362,14 @@ const Renderer = (() => {
           if (targetCardId === draggedCardId) return;
 
           if (draggedSG.id === targetSG.id) {
-            // 同一个小分组内移动
+            // 同一个分组内移动
             const fromIdx = draggedSG.cards.indexOf(draggedCard);
             const toIdx = targetSG.cards.indexOf(targetCard);
             draggedSG.cards = reorderArray(draggedSG.cards, fromIdx, toIdx);
           } else {
-            // 跨小分组移动
+            // 跨分组移动
             if (targetSG.cards.length >= 8) {
-              showToast('目标小分组已满（最多 8 个卡片）');
+              showToast('目标分组已满（最多 8 个卡片）');
               return;
             }
             const fromIdx = draggedSG.cards.indexOf(draggedCard);
@@ -366,7 +380,7 @@ const Renderer = (() => {
             draggedSG.cards.forEach((c, i) => { c.order = i; });
           }
         } else {
-          // 拖到小分组容器上（不是卡片）
+          // 拖到分组容器上（不是卡片）
           const subgroupEl = e.target.closest('.subgroup');
           if (!subgroupEl) return;
 
@@ -374,11 +388,11 @@ const Renderer = (() => {
           if (!targetSG || targetSG.id === draggedSG.id) return;
 
           if (targetSG.cards.length >= 8) {
-            showToast('目标小分组已满（最多 8 个卡片）');
+            showToast('目标分组已满（最多 8 个卡片）');
             return;
           }
 
-          // 从原小分组移除，添加到目标小分组末尾
+          // 从原分组移除，添加到目标分组末尾
           const fromIdx = draggedSG.cards.indexOf(draggedCard);
           draggedSG.cards.splice(fromIdx, 1);
           targetSG.cards.push(draggedCard);
@@ -414,6 +428,28 @@ const Renderer = (() => {
   function findSubgroupInCurrentGroup(subgroupId) {
     if (!currentGroup) return null;
     return currentGroup.subgroups.find(sg => sg.id === subgroupId);
+  }
+
+  function moveSubgroupToGroup(sourceGroupId, subgroupId, targetGroupId) {
+    if (sourceGroupId === targetGroupId) return false;
+
+    const sourceGroup = findGroup(config, sourceGroupId);
+    const targetGroup = findGroup(config, targetGroupId);
+    if (!sourceGroup || !targetGroup) return false;
+
+    const subgroupIndex = sourceGroup.subgroups.findIndex(sg => sg.id === subgroupId);
+    if (subgroupIndex === -1) return false;
+
+    const [subgroup] = sourceGroup.subgroups.splice(subgroupIndex, 1);
+    subgroup.order = targetGroup.subgroups.length;
+    subgroup.updatedAt = now();
+    targetGroup.subgroups.push(subgroup);
+
+    sourceGroup.subgroups.forEach((item, index) => { item.order = index; });
+    targetGroup.subgroups.forEach((item, index) => { item.order = index; });
+    sourceGroup.updatedAt = now();
+    targetGroup.updatedAt = now();
+    return true;
   }
 
   return {

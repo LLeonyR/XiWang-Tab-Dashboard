@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "希望导航仪表台",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "可自定义分组和卡片的导航仪表台，高效管理工作入口",
   "chrome_url_overrides": {
     "newtab": "newtab.html"
@@ -11,11 +11,15 @@
     "tabs",
     "favicon"
   ],
+  "background": {
+    "service_worker": "js/background.js"
+  },
   "host_permissions": [
-    "https://www.google.com/s2/favicons/*"
+    "http://*/*",
+    "https://*/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: https://www.google.com/s2/favicons/ chrome://favicon/;"
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: https://avatars.githubusercontent.com/ chrome://favicon/; connect-src http://*/* https://*/* https://api.github.com https://gist.githubusercontent.com https://github.com;"
   },
   "icons": {
     "16": "assets/icons/icon-16.png",
