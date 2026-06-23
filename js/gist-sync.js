@@ -19,7 +19,9 @@ const GistSync = (() => {
       account: null,
       lastSyncedAt: null,
       syncVersion: 0,
-      lastConfigHash: ''
+      lastConfigHash: '',
+      localDirty: false,
+      pendingConfigHash: ''
     };
   }
 
@@ -47,15 +49,34 @@ const GistSync = (() => {
   async function markLocalUpdated(config = null) {
     const settings = await loadSettings();
     const configHash = config ? getConfigHash(config) : '';
-    if (configHash && configHash === settings.lastConfigHash) {
+
+    if (!configHash) {
       return settings;
     }
 
-    const nextVersion = Number(settings.syncVersion || 0) + 1;
-    await saveSettings({
+    const isBackToSyncedState = Boolean(settings.lastConfigHash)
+      && configHash === settings.lastConfigHash;
+
+    if (isBackToSyncedState) {
+      if (!settings.localDirty && !settings.pendingConfigHash) {
+        return settings;
+      }
+
+      return saveSettings({
+        ...settings,
+        localDirty: false,
+        pendingConfigHash: ''
+      });
+    }
+
+    if (settings.localDirty && settings.pendingConfigHash === configHash) {
+      return settings;
+    }
+
+    return saveSettings({
       ...settings,
-      syncVersion: nextVersion,
-      lastConfigHash: configHash || settings.lastConfigHash
+      localDirty: true,
+      pendingConfigHash: configHash
     });
   }
 
@@ -82,7 +103,7 @@ const GistSync = (() => {
       throw new Error('请先在 js/gist-sync.js 中配置 GitHub OAuth App Client ID');
     }
 
-    const response = await fetch(DEVICE_CODE_URL, {
+    const response = await fetchViaExtension(DEVICE_CODE_URL, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -117,7 +138,7 @@ const GistSync = (() => {
       await delay(pollInterval * 1000, signal);
       throwIfAborted(signal);
 
-      const response = await fetch(ACCESS_TOKEN_URL, {
+      const response = await fetchViaExtension(ACCESS_TOKEN_URL, {
         method: 'POST',
         signal,
         headers: {
@@ -208,10 +229,16 @@ const GistSync = (() => {
       throw new Error('请先完成 GitHub 授权');
     }
 
-    const localEnvelope = buildSyncEnvelope(config, settings);
+    const localConfigHash = getConfigHash(config);
+    const localVersion = Number(settings.syncVersion || 0);
+    const localDirty = hasPendingLocalChanges(settings, localConfigHash);
     const remote = await readRemoteEnvelope(settings, options.signal);
 
     if (!remote) {
+      const uploadVersion = localVersion > 0
+        ? (localDirty ? localVersion + 1 : localVersion)
+        : 1;
+      const localEnvelope = buildSyncEnvelope(config, settings, { syncVersion: uploadVersion });
       const gist = await createGist(token, localEnvelope, options.signal);
       return completeSync({
         settings,
@@ -219,27 +246,17 @@ const GistSync = (() => {
         gistId: gist.id,
         account: settings.account,
         config,
-        syncVersion: localEnvelope.syncVersion,
+        syncVersion: uploadVersion,
         action: 'created'
       });
     }
 
-    const shouldPull = remote.syncVersion > localEnvelope.syncVersion;
-    if (shouldPull) {
-      return completeSync({
-        settings,
-        token,
-        gistId: remote.gistId,
-        account: settings.account,
-        config: remote.config,
-        syncVersion: remote.syncVersion,
-        action: 'pulled'
-      });
-    }
+    const remoteVersion = Number(remote.syncVersion || 0);
+    const remoteHash = remote.configHash || getConfigHash(remote.config);
 
-    if (remote.syncVersion === localEnvelope.syncVersion) {
-      if (remote.configHash !== localEnvelope.configHash) {
-        throw new Error(`同步冲突：本地和服务器版本都是 ${localEnvelope.syncVersion}，但配置内容不同。`);
+    if (remoteVersion > localVersion) {
+      if (localDirty) {
+        throw new Error(`同步冲突：服务器版本 ${remoteVersion} 更新，但本地也有未同步改动。请先备份或手动处理后再同步。`);
       }
 
       return completeSync({
@@ -247,12 +264,45 @@ const GistSync = (() => {
         token,
         gistId: remote.gistId,
         account: settings.account,
-        config,
-        syncVersion: localEnvelope.syncVersion,
-        action: 'noop'
+        config: remote.config,
+        syncVersion: remoteVersion,
+        action: 'pulled'
       });
     }
 
+    if (remoteVersion === localVersion) {
+      if (remoteHash === localConfigHash) {
+        return completeSync({
+          settings,
+          token,
+          gistId: remote.gistId,
+          account: settings.account,
+          config,
+          syncVersion: localVersion,
+          action: 'noop'
+        });
+      }
+
+      if (localDirty && settings.lastConfigHash && remoteHash === settings.lastConfigHash) {
+        const uploadVersion = localVersion + 1;
+        const localEnvelope = buildSyncEnvelope(config, settings, { syncVersion: uploadVersion });
+        await updateGist(token, remote.gistId, localEnvelope, options.signal);
+        return completeSync({
+          settings,
+          token,
+          gistId: remote.gistId,
+          account: settings.account,
+          config,
+          syncVersion: uploadVersion,
+          action: 'pushed'
+        });
+      }
+
+      throw new Error(`同步冲突：本地和服务器版本都是 ${localVersion}，但配置内容不同。`);
+    }
+
+    const uploadVersion = localDirty ? localVersion + 1 : localVersion;
+    const localEnvelope = buildSyncEnvelope(config, settings, { syncVersion: uploadVersion });
     await updateGist(token, remote.gistId, localEnvelope, options.signal);
     return completeSync({
       settings,
@@ -260,7 +310,7 @@ const GistSync = (() => {
       gistId: remote.gistId,
       account: settings.account,
       config,
-      syncVersion: localEnvelope.syncVersion,
+      syncVersion: uploadVersion,
       action: 'pushed'
     });
   }
@@ -361,7 +411,9 @@ const GistSync = (() => {
       account,
       lastSyncedAt: nowTime,
       syncVersion: Number(syncVersion ?? settings.syncVersion ?? 0),
-      lastConfigHash: getConfigHash(config)
+      lastConfigHash: getConfigHash(config),
+      localDirty: false,
+      pendingConfigHash: ''
     });
 
     return {
@@ -371,8 +423,8 @@ const GistSync = (() => {
     };
   }
 
-  function buildSyncEnvelope(config, settings = {}) {
-    const syncVersion = Number(settings.syncVersion || config.syncVersion || 0);
+  function buildSyncEnvelope(config, settings = {}, options = {}) {
+    const syncVersion = Number(options.syncVersion ?? settings.syncVersion ?? config.syncVersion ?? 0);
     return {
       app: 'new-tab-dashboard',
       file: FILE_NAME,
@@ -392,6 +444,15 @@ const GistSync = (() => {
 
   function getConfigHash(config) {
     return JSON.stringify(buildSyncConfig(config));
+  }
+
+  function hasPendingLocalChanges(settings, configHash) {
+    if (settings.lastConfigHash && configHash === settings.lastConfigHash) {
+      return false;
+    }
+
+    return Boolean(settings.localDirty)
+      || Boolean(settings.pendingConfigHash && settings.pendingConfigHash === configHash);
   }
 
   function normalizeRemoteConfig(config) {
@@ -418,7 +479,7 @@ const GistSync = (() => {
       throw new Error('请先完成 GitHub 授权');
     }
 
-    const response = await fetch(`${GITHUB_API}${path}`, {
+    const response = await fetchViaExtension(`${GITHUB_API}${path}`, {
       ...fetchOptions,
       headers: {
         Accept: 'application/vnd.github+json',
@@ -453,7 +514,7 @@ const GistSync = (() => {
     }
 
     const headers = token ? { Authorization: `Bearer ${token.trim()}` } : {};
-    const response = await fetch(url, { headers, signal });
+    const response = await fetchViaExtension(url, { headers, signal });
     if (!response.ok) {
       throw new Error(`读取 Gist 文件失败 (${response.status})`);
     }
@@ -492,6 +553,61 @@ const GistSync = (() => {
     const error = new Error('GitHub 授权已取消');
     error.name = 'AbortError';
     return error;
+  }
+
+  async function fetchViaExtension(url, options = {}) {
+    const { signal, ...fetchOptions } = options;
+    throwIfAborted(signal);
+
+    if (!canUseRuntimeBridge()) {
+      return fetch(url, { ...fetchOptions, signal });
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      type: 'github-fetch',
+      url,
+      method: fetchOptions.method || 'GET',
+      headers: normalizeHeaders(fetchOptions.headers),
+      body: normalizeBody(fetchOptions.body)
+    });
+    throwIfAborted(signal);
+
+    if (!response) {
+      throw new Error('GitHub 请求失败：后台服务未响应');
+    }
+
+    return {
+      ok: Boolean(response.ok),
+      status: Number(response.status || 0),
+      statusText: response.statusText || '',
+      async text() {
+        return response.body || '';
+      },
+      async json() {
+        const body = response.body || '{}';
+        return JSON.parse(body);
+      }
+    };
+  }
+
+  function canUseRuntimeBridge() {
+    return typeof chrome !== 'undefined' && Boolean(chrome.runtime?.sendMessage);
+  }
+
+  function normalizeHeaders(headers = {}) {
+    if (headers instanceof Headers) {
+      return Object.fromEntries(headers.entries());
+    }
+
+    return { ...(headers || {}) };
+  }
+
+  function normalizeBody(body) {
+    if (body instanceof URLSearchParams) {
+      return body.toString();
+    }
+
+    return body;
   }
 
   function formatSyncTime(timestamp) {

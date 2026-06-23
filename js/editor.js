@@ -628,10 +628,6 @@ const Editor = (() => {
   document.getElementById('modalCancel').addEventListener('click', () => closeModal(null));
   document.getElementById('modalConfirm').addEventListener('click', () => closeModal(true));
 
-  document.getElementById('modalOverlay').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeModal(null);
-  });
-
   // Emoji 选择器事件委托
   document.getElementById('modalBody').addEventListener('click', (e) => {
     const option = e.target.closest('.emoji-option');

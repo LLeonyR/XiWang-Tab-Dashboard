@@ -497,7 +497,7 @@
             ${settings.account?.avatarUrl ? `<img class="sync-avatar" src="${Icons.escapeHtml(settings.account.avatarUrl)}" alt="">` : '<div class="sync-avatar sync-avatar-placeholder">GH</div>'}
             <div class="sync-account-meta">
               <div class="sync-account-name">${Icons.escapeHtml(accountName)}</div>
-              <div class="sync-account-detail">${Icons.escapeHtml(gistLabel)} · ${Icons.escapeHtml(versionLabel)}</div>
+              <div class="sync-account-detail">${Icons.escapeHtml(versionLabel)} · ${Icons.escapeHtml(gistLabel)}</div>
             </div>
           </div>
 
@@ -608,7 +608,7 @@
             ${acct.avatarUrl ? `<img class="sync-avatar" src="${Icons.escapeHtml(acct.avatarUrl)}" alt="">` : '<div class="sync-avatar sync-avatar-placeholder">GH</div>'}
             <div class="sync-account-meta">
               <div class="sync-account-name">${Icons.escapeHtml(acctName)}</div>
-              <div class="sync-account-detail">${Icons.escapeHtml(gistLabel)} · ${Icons.escapeHtml(versionLabel)}</div>
+              <div class="sync-account-detail">${Icons.escapeHtml(versionLabel)} · ${Icons.escapeHtml(gistLabel)}</div>
             </div>
           `;
         }
@@ -651,7 +651,7 @@
           <div class="sync-avatar sync-avatar-placeholder">GH</div>
           <div class="sync-account-meta">
             <div class="sync-account-name">未授权</div>
-            <div class="sync-account-detail">首次同步会自动创建私有 Gist · 同步版本：0</div>
+            <div class="sync-account-detail">同步版本：0 · 首次同步会自动创建私有 Gist</div>
           </div>
         `;
       }
