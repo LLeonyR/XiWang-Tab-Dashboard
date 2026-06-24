@@ -438,7 +438,7 @@ const GistSync = (() => {
     return {
       version: config.version || 1,
       settings: { ...(config.settings || {}) },
-      groups: Array.isArray(config.groups) ? Storage.cloneConfig(config.groups) : []
+      groups: sanitizeGroupsForSync(config.groups)
     };
   }
 
@@ -461,16 +461,51 @@ const GistSync = (() => {
     }
 
     const defaults = Storage.getDefaultConfig();
+    const worldClock = {
+      ...defaults.settings.worldClock,
+      ...(config.settings?.worldClock || {})
+    };
+    if (!Array.isArray(worldClock.countryCodes)) {
+      worldClock.countryCodes = worldClock.countryCode
+        ? [worldClock.countryCode]
+        : [...defaults.settings.worldClock.countryCodes];
+    }
+    const groupDisplay = {
+      ...defaults.settings.groupDisplay,
+      ...(config.settings?.groupDisplay || {})
+    };
+    if (!Array.isArray(groupDisplay.visibleGroupIds)) {
+      groupDisplay.visibleGroupIds = [...defaults.settings.groupDisplay.visibleGroupIds];
+    }
+
     return {
       ...defaults,
       ...config,
       settings: {
         ...defaults.settings,
-        ...(config.settings || {})
+        ...(config.settings || {}),
+        worldClock,
+        groupDisplay
       },
-      groups: config.groups,
+      groups: sanitizeGroupsForSync(config.groups),
       _faviconCache: {}
     };
+  }
+
+  function sanitizeGroupsForSync(groups) {
+    const clonedGroups = Array.isArray(groups) ? Storage.cloneConfig(groups) : [];
+
+    clonedGroups.forEach(group => {
+      (group.subgroups || []).forEach(subgroup => {
+        (subgroup.cards || []).forEach(card => {
+          if (card.iconType === 'favicon') {
+            card.iconValue = '';
+          }
+        });
+      });
+    });
+
+    return clonedGroups;
   }
 
   async function githubRequest(path, options = {}) {

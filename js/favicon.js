@@ -26,29 +26,31 @@ const Favicons = (() => {
       if (!domain) return;
 
       const cache = ensureCache(config);
-      const cachedEntry = normalizeCacheEntry(cache[domain]);
-      const cachedValue = getCachedValue(cachedEntry);
+      let cachedEntry = normalizeCacheEntry(cache[domain]);
+      let cachedValue = getCachedValue(cachedEntry);
       const cardValue = isDataImageUrl(card.iconValue) ? card.iconValue : '';
 
-      if (cachedValue || cardValue) {
-        const value = cachedValue || cardValue;
-        card.iconValue = value;
-
-        if (!cachedValue) {
-          cache[domain] = createSuccessEntry(value, {
-            source: 'card',
-            sourceUrl: parsedUrl.href
-          });
-          return;
-        }
+      if (cardValue && !cachedValue) {
+        cache[domain] = createSuccessEntry(cardValue, {
+          source: 'card',
+          sourceUrl: parsedUrl.href
+        });
+        cachedEntry = normalizeCacheEntry(cache[domain]);
+        cachedValue = getCachedValue(cachedEntry);
       }
 
-      if (!shouldFetch(cachedEntry)) return;
-
-      const favicon = await fetchAndStore(parsedUrl.href, config, domain, cachedEntry);
-      if (favicon) {
-        card.iconValue = favicon;
+      if (cachedValue && !shouldFetch(cachedEntry)) {
+        clearCardFaviconValue(card);
+        return;
       }
+
+      if (!shouldFetch(cachedEntry)) {
+        clearCardFaviconValue(card);
+        return;
+      }
+
+      await fetchAndStore(parsedUrl.href, config, domain, cachedEntry);
+      clearCardFaviconValue(card);
     } catch (error) {
       // favicon 获取失败，静默处理
       console.debug('Favicon fetch failed for', card.url, error);
@@ -83,33 +85,31 @@ const Favicons = (() => {
 
     const tasks = [...cardsByDomain.entries()].map(async ([domain, item]) => {
       const cache = ensureCache(config);
-      const cachedEntry = normalizeCacheEntry(cache[domain]);
-      const cachedValue = getCachedValue(cachedEntry);
+      let cachedEntry = normalizeCacheEntry(cache[domain]);
+      let cachedValue = getCachedValue(cachedEntry);
       const cardValue = item.cards.map(card => card.iconValue).find(isDataImageUrl) || '';
 
-      if (cachedValue || cardValue) {
-        const value = cachedValue || cardValue;
-        item.cards.forEach(card => {
-          card.iconValue = value;
+      if (cardValue && !cachedValue) {
+        cache[domain] = createSuccessEntry(cardValue, {
+          source: 'card',
+          sourceUrl: item.url
         });
-
-        if (!cachedValue) {
-          cache[domain] = createSuccessEntry(value, {
-            source: 'card',
-            sourceUrl: item.url
-          });
-          return;
-        }
+        cachedEntry = normalizeCacheEntry(cache[domain]);
+        cachedValue = getCachedValue(cachedEntry);
       }
 
-      if (!shouldFetch(cachedEntry)) return;
-
-      const favicon = await fetchAndStore(item.url, config, domain, cachedEntry);
-      if (favicon) {
-        item.cards.forEach(card => {
-          card.iconValue = favicon;
-        });
+      if (cachedValue && !shouldFetch(cachedEntry)) {
+        item.cards.forEach(clearCardFaviconValue);
+        return;
       }
+
+      if (!shouldFetch(cachedEntry)) {
+        item.cards.forEach(clearCardFaviconValue);
+        return;
+      }
+
+      await fetchAndStore(item.url, config, domain, cachedEntry);
+      item.cards.forEach(clearCardFaviconValue);
     });
 
     await Promise.allSettled(tasks);
@@ -141,6 +141,48 @@ const Favicons = (() => {
     } catch {
       return null;
     }
+  }
+
+  function getCachedForUrl(url, config) {
+    const parsedUrl = parseHttpUrl(url);
+    if (!parsedUrl || !config) return '';
+
+    const cache = config._faviconCache || {};
+    const entry = normalizeCacheEntry(cache[getCacheKey(parsedUrl)]);
+    return getCachedValue(entry);
+  }
+
+  function migrateCardFaviconToCache(config, card) {
+    if (!config || !card || card.iconType !== 'favicon' || !isDataImageUrl(card.iconValue)) {
+      return false;
+    }
+
+    const parsedUrl = parseHttpUrl(card.url);
+    if (!parsedUrl) return false;
+
+    const cache = ensureCache(config);
+    const domain = getCacheKey(parsedUrl);
+    const cachedEntry = normalizeCacheEntry(cache[domain]);
+
+    if (!getCachedValue(cachedEntry)) {
+      cache[domain] = createSuccessEntry(card.iconValue, {
+        source: 'card',
+        sourceUrl: parsedUrl.href
+      });
+    }
+
+    clearCardFaviconValue(card);
+    return true;
+  }
+
+  function migrateConfig(config) {
+    let migrated = false;
+    forEachFaviconCard(config, (card) => {
+      if (migrateCardFaviconToCache(config, card)) {
+        migrated = true;
+      }
+    });
+    return migrated;
   }
 
   async function fetchAndStore(url, config, domain, previousEntry) {
@@ -350,6 +392,12 @@ const Favicons = (() => {
     return typeof value === 'string' && /^data:image\//i.test(value);
   }
 
+  function clearCardFaviconValue(card) {
+    if (card?.iconType === 'favicon' && card.iconValue) {
+      card.iconValue = '';
+    }
+  }
+
   function canUseRuntimeBridge() {
     return typeof chrome !== 'undefined' && Boolean(chrome.runtime?.sendMessage);
   }
@@ -357,6 +405,9 @@ const Favicons = (() => {
   return {
     fetchAndCache,
     fetchAllForConfig,
-    fetchForDomain
+    fetchForDomain,
+    getCachedForUrl,
+    migrateCardFaviconToCache,
+    migrateConfig
   };
 })();

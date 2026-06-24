@@ -78,8 +78,16 @@ const Editor = (() => {
     if (!form) return {};
     const data = {};
     form.querySelectorAll('input, textarea, select').forEach(el => {
-      if (el.type === 'radio') {
+      if (el.name.endsWith('[]')) {
+        const key = el.name.slice(0, -2);
+        data[key] = data[key] || [];
+        if (el.type !== 'checkbox' || el.checked) {
+          data[key].push(el.value);
+        }
+      } else if (el.type === 'radio') {
         if (el.checked) data[el.name] = el.value;
+      } else if (el.type === 'checkbox') {
+        data[el.name] = el.checked ? (el.value || 'on') : '';
       } else {
         data[el.name] = el.value;
       }
@@ -332,7 +340,7 @@ const Editor = (() => {
         } else if (iconType === 'custom') {
           iconValue = data.customIconUrl || '';
         } else {
-          iconValue = data._fetchedFavicon || getCachedFavicon(data.url) || '';
+          iconValue = '';
         }
         const card = createCard({
           name: data.name || '新卡片',
@@ -383,7 +391,7 @@ const Editor = (() => {
           </label>
         </div>
         <div id="faviconPreviewContainer" style="display:none;margin-top:8px;"></div>
-        <input type="hidden" name="_fetchedFavicon" id="fetchedFaviconInput" value="${isFavicon ? Icons.escapeHtml(card.iconValue || '') : ''}">
+        <input type="hidden" name="_fetchedFavicon" id="fetchedFaviconInput" value="">
         <div id="emojiPickerContainer" style="display:${isEmoji ? 'block' : 'none'};">
           ${renderEmojiPicker(isEmoji ? card.iconValue : '🌐')}
           <input type="hidden" name="iconValue" value="${Icons.escapeHtml(card.iconValue || '')}">
@@ -398,8 +406,6 @@ const Editor = (() => {
     if (result) {
       const data = getCapturedFormData();
       const iconType = data.iconType || 'emoji';
-      const previousIconType = card.iconType;
-      const previousIconValue = card.iconValue;
       card.name = data.name || card.name;
       card.url = data.url || card.url;
       card.iconType = iconType;
@@ -408,8 +414,7 @@ const Editor = (() => {
       } else if (iconType === 'custom') {
         card.iconValue = data.customIconUrl || '';
       } else {
-        // favicon: 优先使用本次获取的，否则保留原有值
-        card.iconValue = data._fetchedFavicon || getCachedFavicon(data.url) || (previousIconType === 'favicon' ? previousIconValue : '') || '';
+        card.iconValue = '';
       }
       card.updatedAt = now();
       return card;
@@ -712,6 +717,7 @@ const Editor = (() => {
   return {
     showModal,
     closeModal,
+    getCapturedFormData,
     addGroup,
     editGroup,
     setActiveGroup,

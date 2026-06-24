@@ -12,19 +12,27 @@
   <link rel="stylesheet" href="css/modal.css">
 </head>
 <body>
-  <div id="app" class="app-container">
+  <div id="app" class="app-shell">
+    <div id="worldClockBar" class="world-clock-bar hidden" aria-live="polite"></div>
+    <div class="app-container">
     <!-- 左侧类别导航 -->
     <nav id="sidebar" class="sidebar">
-      <div id="groupList" class="group-list"></div>
-      <div class="sidebar-actions">
-        <button id="settingsBtn" class="sidebar-icon-btn" title="云同步">☁</button>
+      <div id="groupList" class="group-list">
         <button id="addGroupBtn" class="sidebar-add-btn" title="添加类别">＋</button>
+      </div>
+      <div class="sidebar-actions">
+        <button id="appSettingsBtn" class="sidebar-icon-btn" title="设置">⚙</button>
+        <button id="settingsBtn" class="sidebar-icon-btn" title="云同步">☁</button>
       </div>
     </nav>
 
     <!-- 右侧内容区 -->
     <main id="content" class="content-area">
       <div id="toolbar" class="toolbar">
+        <div id="toolbarClock" class="toolbar-clock" aria-live="polite">
+          <span id="toolbarTime" class="toolbar-time">--:--:--</span>
+          <span id="toolbarWeekday" class="toolbar-weekday">星期--</span>
+        </div>
         <button id="exportBtn" class="toolbar-btn" title="导出配置">
           <span class="toolbar-btn-icon">📤</span>
           <span class="toolbar-btn-text">导出</span>
@@ -41,6 +49,7 @@
       <div id="subgroupGrid" class="subgroup-grid"></div>
       <button id="addSubgroupBtn" class="content-add-btn" title="添加分组">＋ 添加分组</button>
     </main>
+    </div>
   </div>
 
   <!-- 编辑弹窗 -->

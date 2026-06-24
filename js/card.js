@@ -5,8 +5,8 @@ const CardComponent = (() => {
   /**
    * 渲染卡片 HTML
    */
-  function render(card, displayMode) {
-    const iconHtml = Icons.renderCardIcon(card);
+  function render(card, displayMode, config) {
+    const iconHtml = Icons.renderCardIcon(card, config);
     const modeClass = displayMode === 'compact' ? 'compact' : 'comfortable';
     return `
       <div class="card ${modeClass}"

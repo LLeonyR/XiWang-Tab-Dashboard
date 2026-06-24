@@ -95,6 +95,9 @@ async function resolveFavicon(pageUrl) {
   const commonIcon = await fetchBestImage(buildCommonIconCandidates(pageUrl));
   if (commonIcon) return commonIcon;
 
+  const htmlFallbackIcon = await fetchIconFromHtmlFallbacks(buildCommonHtmlFallbackUrls(pageUrl));
+  if (htmlFallbackIcon) return htmlFallbackIcon;
+
   const manifestIcon = await fetchManifestIconCandidates(buildCommonManifestUrls(pageUrl));
   const commonManifestIcon = await fetchBestImage(manifestIcon);
   if (commonManifestIcon) return commonManifestIcon;
@@ -128,6 +131,14 @@ function buildCommonIconCandidates(pageUrl) {
   ];
 }
 
+function buildCommonHtmlFallbackUrls(pageUrl) {
+  return [
+    new URL('/favicon.ico', pageUrl.origin),
+    new URL('/favicon.svg', pageUrl.origin),
+    new URL('/favicon.png', pageUrl.origin)
+  ];
+}
+
 function buildCommonManifestUrls(pageUrl) {
   return [
     new URL('/site.webmanifest', pageUrl.origin).href,
@@ -136,8 +147,17 @@ function buildCommonManifestUrls(pageUrl) {
   ];
 }
 
-async function fetchIconFromPage(pageUrl) {
-  const page = await fetchPageHtml(pageUrl);
+async function fetchIconFromHtmlFallbacks(pageUrls) {
+  for (const pageUrl of pageUrls) {
+    const icon = await fetchIconFromPage(pageUrl, { allowErrorStatusHtml: true });
+    if (icon) return icon;
+  }
+
+  return null;
+}
+
+async function fetchIconFromPage(pageUrl, options = {}) {
+  const page = await fetchPageHtml(pageUrl, options);
   if (!page) return null;
 
   const { icons, manifests } = extractPageIconCandidates(page.text, page.url);
@@ -146,7 +166,7 @@ async function fetchIconFromPage(pageUrl) {
   return fetchBestImage([...manifestIcons, ...icons]);
 }
 
-async function fetchPageHtml(pageUrl) {
+async function fetchPageHtml(pageUrl, options = {}) {
   try {
     const response = await fetchWithTimeout(pageUrl.href, {
       cache: 'force-cache',
@@ -157,10 +177,9 @@ async function fetchPageHtml(pageUrl) {
       }
     }, FAVICON_PAGE_TIMEOUT_MS);
 
-    if (!response.ok) return null;
-
     const contentType = response.headers.get('content-type') || '';
     if (contentType && !contentType.toLowerCase().includes('html')) return null;
+    if (!response.ok && !options.allowErrorStatusHtml) return null;
 
     return {
       url: response.url || pageUrl.href,
@@ -230,7 +249,7 @@ function extractPageIconCandidates(html, baseUrl) {
     if (!href || !rel) continue;
 
     const relTokens = rel.split(/\s+/).filter(Boolean);
-    const hrefUrl = safeResolveUrl(href, baseUrl);
+    const hrefUrl = safeResolveIconUrl(href, baseUrl);
     if (!hrefUrl) continue;
 
     if (relTokens.includes('manifest')) {
@@ -343,6 +362,11 @@ function safeResolveUrl(value, baseUrl) {
   }
 }
 
+function safeResolveIconUrl(value, baseUrl) {
+  if (isImageDataUrl(value)) return value;
+  return safeResolveUrl(value, baseUrl);
+}
+
 async function fetchBestImage(candidates) {
   const uniqueCandidates = dedupeCandidates(candidates).slice(0, 12);
   if (uniqueCandidates.length === 0) return null;
@@ -355,6 +379,16 @@ async function fetchBestImage(candidates) {
 }
 
 async function fetchImageCandidate(candidate) {
+  if (isImageDataUrl(candidate.url)) {
+    return {
+      dataUrl: candidate.url,
+      mimeType: getDataUrlMimeType(candidate.url),
+      source: candidate.source,
+      url: candidate.url,
+      score: candidate.score || 0
+    };
+  }
+
   const response = await fetchWithTimeout(candidate.url, {
     cache: 'force-cache',
     credentials: 'omit',
@@ -409,6 +443,15 @@ function inferImageMimeType(contentType, url) {
   if (pathname.endsWith('.gif')) return 'image/gif';
 
   return null;
+}
+
+function isImageDataUrl(value) {
+  return typeof value === 'string' && /^data:image\/[a-z0-9.+-]+;base64,/i.test(value);
+}
+
+function getDataUrlMimeType(value) {
+  const match = String(value || '').match(/^data:([^;,]+)[;,]/i);
+  return match?.[1]?.toLowerCase() || 'image/png';
 }
 
 function canInferImageTypeFromUrl(mimeType) {

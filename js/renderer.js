@@ -14,17 +14,18 @@ const Renderer = (() => {
     config = _config;
     Editor.setConfig(config);
 
-    const activeGroup = getActiveGroup(config);
+    const visibleGroups = getVisibleGroups(config);
+    const activeGroup = getActiveVisibleGroup(config, visibleGroups);
 
-    if (!activeGroup && config.groups.length > 0) {
-      config.settings.activeGroupId = config.groups[0].id;
+    if (!activeGroup && visibleGroups.length > 0) {
+      config.settings.activeGroupId = visibleGroups[0].id;
       renderAll(config);
       return;
     }
 
     if (config.settings.activeGroupId && !activeGroup) {
-      if (config.groups.length > 0) {
-        config.settings.activeGroupId = config.groups[0].id;
+      if (visibleGroups.length > 0) {
+        config.settings.activeGroupId = visibleGroups[0].id;
         renderAll(config);
       }
       return;
@@ -32,7 +33,7 @@ const Renderer = (() => {
 
     currentGroup = activeGroup;
 
-    SidebarComponent.render(config.groups, config.settings.activeGroupId);
+    SidebarComponent.render(visibleGroups, config.settings.activeGroupId);
     renderContent(activeGroup);
   }
 
@@ -53,7 +54,7 @@ const Renderer = (() => {
     }
 
     const sorted = [...group.subgroups].sort((a, b) => a.order - b.order);
-    grid.innerHTML = sorted.map(sg => SubgroupComponent.render(sg)).join('');
+    grid.innerHTML = sorted.map(sg => SubgroupComponent.render(sg, config)).join('');
 
     // 绑定分组拖拽事件（这些是针对新元素的，需要每次绑定）
     sorted.forEach(sg => {
@@ -93,6 +94,8 @@ const Renderer = (() => {
    * 切换分组（只更新高亮和内容，不重渲染侧边栏）
    */
   function switchGroup(groupId) {
+    if (!getVisibleGroups(config).some(group => group.id === groupId)) return;
+
     config.settings.activeGroupId = groupId;
     SidebarComponent.highlightGroup(groupId);
     currentGroup = findGroup(config, groupId);
@@ -236,7 +239,7 @@ const Renderer = (() => {
             if (card.iconType === 'favicon') {
               Favicons.fetchAndCache(config, card).then(() => {
                 refreshContent();
-                Storage.saveConfig(config);
+                Storage.saveConfig(config, { markDirty: false });
               });
             }
           }
@@ -450,6 +453,25 @@ const Renderer = (() => {
     sourceGroup.updatedAt = now();
     targetGroup.updatedAt = now();
     return true;
+  }
+
+  function getVisibleGroups(config) {
+    const visibleIds = config.settings?.groupDisplay?.visibleGroupIds;
+    if (!Array.isArray(visibleIds) || visibleIds.length === 0) {
+      return config.groups || [];
+    }
+
+    const visibleSet = new Set(visibleIds);
+    return (config.groups || []).filter(group => visibleSet.has(group.id));
+  }
+
+  function getActiveVisibleGroup(config, visibleGroups) {
+    const activeId = config.settings.activeGroupId;
+    if (activeId) {
+      const group = visibleGroups.find(item => item.id === activeId);
+      if (group) return group;
+    }
+    return visibleGroups[0] || null;
   }
 
   return {

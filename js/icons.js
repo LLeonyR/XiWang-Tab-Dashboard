@@ -7,12 +7,12 @@ const Icons = (() => {
   /**
    * 渲染卡片图标为 HTML 字符串
    */
-  function renderCardIcon(card) {
+  function renderCardIcon(card, config) {
     switch (card.iconType) {
       case 'emoji':
         return `<span class="emoji-icon">${escapeHtml(card.iconValue || '🌐')}</span>`;
       case 'favicon':
-        return renderFaviconImg(card);
+        return renderFaviconImg(card, config);
       case 'custom':
         if (card.iconValue) {
           return `<img src="${escapeHtml(card.iconValue)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='${DEFAULT_ICON.replace(/'/g, "\\'")}'">`;
@@ -28,9 +28,13 @@ const Icons = (() => {
    * 只渲染已缓存的 base64 值，无缓存时显示回退图标
    * 实际获取由 Favicons.fetchAllForConfig 异步完成
    */
-  function renderFaviconImg(card) {
-    if (card.iconValue) {
-      return `<img src="${escapeHtml(card.iconValue)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+  function renderFaviconImg(card, config) {
+    const favicon = typeof Favicons !== 'undefined'
+      ? Favicons.getCachedForUrl(card.url, config)
+      : '';
+
+    if (favicon) {
+      return `<img src="${escapeHtml(favicon)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
         <span class="emoji-icon" style="display:none">🌐</span>`;
     }
     // 无缓存，显示回退图标（后台获取完成后会自动刷新）

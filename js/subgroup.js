@@ -5,15 +5,16 @@ const SubgroupComponent = (() => {
   /**
    * 渲染小分组 HTML
    */
-  function render(subgroup) {
+  function render(subgroup, config) {
     const modeClass = subgroup.displayMode === 'compact' ? 'compact' : 'comfortable';
+    const emptyClass = subgroup.cards.length === 0 ? 'empty' : '';
     const cardsHtml = subgroup.cards
       .sort((a, b) => a.order - b.order)
-      .map(card => CardComponent.render(card, subgroup.displayMode))
+      .map(card => CardComponent.render(card, subgroup.displayMode, config))
       .join('');
 
     return `
-      <div class="subgroup ${modeClass}"
+      <div class="subgroup ${modeClass} ${emptyClass}"
            data-subgroup-id="${subgroup.id}"
            draggable="true">
         <div class="subgroup-header">

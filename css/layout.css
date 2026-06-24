@@ -1,18 +1,91 @@
 /* 整体布局 */
-.app-container {
+.app-shell {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   width: 100vw;
+  overflow: hidden;
+}
+
+.world-clock-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 34px;
+  padding: 6px 24px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.world-clock-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.world-clock-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.world-clock-item-name {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.world-clock-item-time {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-container {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   overflow: hidden;
 }
 
 /* 顶部工具栏 */
 .toolbar {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 6px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-light);
+}
+
+.toolbar-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 28px;
+  margin-right: auto;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.toolbar-time {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.toolbar-weekday {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .toolbar-btn {

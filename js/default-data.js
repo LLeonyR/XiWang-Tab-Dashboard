@@ -7,7 +7,14 @@ const MtabDefaultData = {
   settings: {
     theme: 'auto',
     activeGroupId: null,
-    language: 'zh_CN'
+    language: 'zh_CN',
+    worldClock: {
+      enabled: true,
+      countryCodes: ['CN']
+    },
+    groupDisplay: {
+      visibleGroupIds: []
+    }
   },
   groups: [],
   _faviconCache: {}

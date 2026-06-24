@@ -15,7 +15,7 @@ const SidebarComponent = (() => {
     const sorted = [...groups].sort((a, b) => a.order - b.order);
     currentActiveId = activeGroupId;
 
-    groupList.innerHTML = sorted.map(group => `
+    groupList.innerHTML = `${sorted.map(group => `
       <div class="group-item ${group.id === activeGroupId ? 'active' : ''}"
            data-group-id="${group.id}"
            title="${Icons.escapeHtml(group.name)}"
@@ -23,7 +23,9 @@ const SidebarComponent = (() => {
         <span class="group-item-icon">${group.icon || '📂'}</span>
         <span class="group-item-name">${Icons.escapeHtml(group.name)}</span>
       </div>
-    `).join('');
+    `).join('')}
+      <button id="addGroupBtn" class="sidebar-add-btn" title="添加类别">＋</button>
+    `;
 
     // 设置分组拖拽事件
     setupGroupDragEvents();

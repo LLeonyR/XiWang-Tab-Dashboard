@@ -13,7 +13,14 @@ const Storage = (() => {
       settings: {
         theme: 'auto',
         activeGroupId: null,
-        language: 'zh_CN'
+        language: 'zh_CN',
+        worldClock: {
+          enabled: true,
+          countryCodes: ['CN']
+        },
+        groupDisplay: {
+          visibleGroupIds: []
+        }
       },
       groups: [],
       _faviconCache: {}
@@ -94,7 +101,7 @@ const Storage = (() => {
             throw new Error('配置文件格式不正确');
           }
           await saveConfig(config);
-          resolve(config);
+          resolve(await loadConfig());
         } catch (error) {
           reject(error);
         }
@@ -110,6 +117,22 @@ const Storage = (() => {
   function mergeDefaults(config, defaults) {
     const merged = { ...defaults, ...config };
     merged.settings = { ...defaults.settings, ...(config.settings || {}) };
+    merged.settings.worldClock = {
+      ...defaults.settings.worldClock,
+      ...(config.settings?.worldClock || {})
+    };
+    if (!Array.isArray(merged.settings.worldClock.countryCodes)) {
+      merged.settings.worldClock.countryCodes = merged.settings.worldClock.countryCode
+        ? [merged.settings.worldClock.countryCode]
+        : [...defaults.settings.worldClock.countryCodes];
+    }
+    merged.settings.groupDisplay = {
+      ...defaults.settings.groupDisplay,
+      ...(config.settings?.groupDisplay || {})
+    };
+    if (!Array.isArray(merged.settings.groupDisplay.visibleGroupIds)) {
+      merged.settings.groupDisplay.visibleGroupIds = [...defaults.settings.groupDisplay.visibleGroupIds];
+    }
     if (!merged._faviconCache) merged._faviconCache = {};
     return merged;
   }

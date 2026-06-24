@@ -91,6 +91,17 @@
   margin-bottom: 8px;
 }
 
+.subgroup-cards:empty {
+  display: none;
+}
+
+.subgroup.empty .subgroup-header,
+.subgroup:has(.subgroup-cards:empty) .subgroup-header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .subgroup.compact .subgroup-cards {
   grid-template-columns: repeat(4, 1fr);
 }
